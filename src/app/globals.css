@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -109,4 +110,18 @@ body {
   body {
     @apply bg-background text-foreground transition-colors duration-300;
   }
+}
+
+/* Styles for Focus Mode */
+body.focus-mode-active header[class*="sticky"] { /* Target the main site header more specifically */
+  display: none !important;
+}
+
+body.focus-mode-active footer {
+  display: none !important;
+}
+
+body.focus-mode-active main.container {
+  padding-top: 0.5rem !important; /* Reduce top padding when header is gone */
+  padding-bottom: 0.5rem !important;
 }
