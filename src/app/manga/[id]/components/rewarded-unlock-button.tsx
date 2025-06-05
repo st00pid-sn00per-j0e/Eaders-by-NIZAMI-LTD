@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Zap, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Manga } from '@/types';
+import type { Series } from '@/types'; // Changed from Manga to Series
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,44 +19,37 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface RewardedUnlockButtonProps {
-  manga: Manga;
+  series: Series; // Changed from manga to series
 }
 
-export default function RewardedUnlockButton({ manga }: RewardedUnlockButtonProps) {
+export default function RewardedUnlockButton({ series }: RewardedUnlockButtonProps) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check local storage if this manga was previously unlocked
-    const unlockedStatus = localStorage.getItem(`manga-${manga.id}-unlocked`);
+    const unlockedStatus = localStorage.getItem(`series-${series.id}-unlocked`); // Key by series.id
     if (unlockedStatus === 'true') {
       setIsUnlocked(true);
     }
-  }, [manga.id]);
+  }, [series.id]);
 
   const handleUnlock = () => {
-    // Simulate watching a rewarded ad
-    // In a real app, integrate with an ad SDK here
     setTimeout(() => {
       setIsUnlocked(true);
-      localStorage.setItem(`manga-${manga.id}-unlocked`, 'true');
+      localStorage.setItem(`series-${series.id}-unlocked`, 'true'); // Key by series.id
       toast({
-        title: "Manga Unlocked!",
-        description: `You can now read all chapters of ${manga.title}.`,
+        title: "Series Unlocked!",
+        description: `You can now read all chapters of ${series.metadata.title}.`,
       });
-      // Force a re-render or redirect if needed, or rely on state updating list items
-      // This hack forces components relying on this localStorage item to re-check
       window.dispatchEvent(new Event('storage')); 
-      // A more React-idiomatic way would be to use context or lift state.
-      // For now, sibling components might need to listen to storage events or re-evaluate on navigation.
-    }, 1500); // Simulate ad watching time
+    }, 1500);
   };
 
   if (isUnlocked) {
     return (
       <Button variant="outline" disabled className="border-green-500 text-green-600">
         <Check className="mr-2 h-4 w-4" />
-        Manga Unlocked
+        Series Unlocked
       </Button>
     );
   }
@@ -70,9 +64,9 @@ export default function RewardedUnlockButton({ manga }: RewardedUnlockButtonProp
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Unlock {manga.title}?</AlertDialogTitle>
+          <AlertDialogTitle>Unlock {series.metadata.title}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Watch a short ad to unlock all chapters of this premium manga. This helps support us and the creators!
+            Watch a short ad to unlock all chapters of this premium series. This helps support us and the creators!
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -1,47 +1,51 @@
 
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getMangaById, getChapterById } from '@/lib/mock-data';
-import type { Manga, Chapter } from '@/types';
-import ChapterView from './components/chapter-view'; // New client component
+import { getSeriesById, getBookById, getBooksBySeriesId } from '@/lib/manga-service';
+import type { Series, Book } from '@/types'; // Import new types
+import ChapterView from './components/chapter-view';
 
 interface ChapterPageProps {
   params: {
-    id: string; // mangaId
-    chapterId: string;
+    id: string; // This is seriesId
+    chapterId: string; // This is bookId
   };
 }
 
 export async function generateMetadata({ params }: ChapterPageProps) {
-  const manga = getMangaById(params.id);
-  const chapter = getChapterById(params.id, params.chapterId);
-  if (!manga || !chapter) {
+  const series = await getSeriesById(params.id);
+  const book = await getBookById(params.chapterId); // chapterId is bookId
+  if (!series || !book) {
     return { title: 'Chapter Not Found - Eaders' };
   }
   return {
-    title: `${manga.title} - ${chapter.title} - Eaders`,
+    // Use series.metadata.title and book.name or book.metadata.title
+    title: `${series.metadata.title} - ${book.name || `Chapter ${book.number}`} - Eaders`,
   };
 }
 
-export default function ChapterPage({ params }: ChapterPageProps) {
-  const manga = getMangaById(params.id);
-  const chapter = getChapterById(params.id, params.chapterId);
+export default async function ChapterPage({ params }: ChapterPageProps) {
+  const series = await getSeriesById(params.id);
+  const currentBook = await getBookById(params.chapterId);
 
-  if (!manga || !chapter) {
+  if (!series || !currentBook) {
     notFound();
   }
 
-  const chapterIndex = manga.chapters.findIndex(c => c.id === chapter.id);
-  const prevChapter = chapterIndex > 0 ? manga.chapters[chapterIndex - 1] : null;
-  const nextChapter = chapterIndex < manga.chapters.length - 1 ? manga.chapters[chapterIndex + 1] : null;
+  // Fetch all books for the series to find previous/next
+  const allBooksInSeries = await getBooksBySeriesId(series.id);
+  const currentBookIndex = allBooksInSeries.findIndex(b => b.id === currentBook.id);
+
+  const prevBook = currentBookIndex > 0 ? allBooksInSeries[currentBookIndex - 1] : null;
+  const nextBook = currentBookIndex < allBooksInSeries.length - 1 ? allBooksInSeries[currentBookIndex + 1] : null;
 
   return (
     <ChapterView
-      manga={manga}
-      chapter={chapter}
-      prevChapter={prevChapter}
-      nextChapter={nextChapter}
-      params={params}
+      series={series}
+      book={currentBook}
+      prevBook={prevBook}
+      nextBook={nextBook}
+      // params are still id and chapterId from route
     />
   );
 }

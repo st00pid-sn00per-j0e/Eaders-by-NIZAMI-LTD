@@ -9,23 +9,22 @@ import { ChevronLeft, ChevronRight, List, Maximize, Minimize } from 'lucide-reac
 import AdBanner from '@/components/ad-banner';
 import React, { useState, useEffect } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Manga, Chapter } from '@/types';
+import type { Series, Book, Page } from '@/types'; // Import new types
+import { getBookPages } from '@/lib/manga-service'; // Import service to get pages
 
 interface ChapterViewProps {
-  manga: Manga;
-  chapter: Chapter;
-  prevChapter: Chapter | null;
-  nextChapter: Chapter | null;
-  params: {
-    id: string;
-    chapterId: string;
-  };
+  series: Series;
+  book: Book;
+  prevBook: Book | null;
+  nextBook: Book | null;
 }
 
-const AD_INTERVAL = 2; // Show an ad every 2 pages
+const AD_INTERVAL = 2;
 
-export default function ChapterView({ manga, chapter, prevChapter, nextChapter, params }: ChapterViewProps) {
+export default function ChapterView({ series, book, prevBook, nextBook }: ChapterViewProps) {
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [pages, setPages] = useState<Page[]>([]);
+  const [isLoadingPages, setIsLoadingPages] = useState(true);
 
   useEffect(() => {
     if (isFocusMode) {
@@ -38,7 +37,24 @@ export default function ChapterView({ manga, chapter, prevChapter, nextChapter, 
     };
   }, [isFocusMode]);
 
-  const pages = Array.from({ length: chapter.pageCount }, (_, i) => `https://placehold.co/800x1200.png?text=Page+${i + 1}`);
+  useEffect(() => {
+    async function fetchPages() {
+      setIsLoadingPages(true);
+      const fetchedPages = await getBookPages(book.id);
+      setPages(fetchedPages);
+      setIsLoadingPages(false);
+    }
+    fetchPages();
+  }, [book.id]);
+
+  if (isLoadingPages) {
+    return (
+      <div className="mx-auto max-w-3xl text-center py-10">
+        <p>Loading chapter pages...</p>
+        {/* Optionally add a spinner here */}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -47,24 +63,24 @@ export default function ChapterView({ manga, chapter, prevChapter, nextChapter, 
       <div className={`sticky bg-background py-2 z-40 mb-4 border-b ${isFocusMode ? 'top-0' : 'top-16'}`}>
         <div className="container mx-auto px-2 flex flex-col sm:flex-row justify-between items-center">
           <div className="text-center sm:text-left mb-2 sm:mb-0">
-            <h1 className="text-xl font-headline font-semibold truncate" title={manga.title}>{manga.title}</h1>
-            <p className="text-sm text-muted-foreground truncate" title={chapter.title}>{chapter.title}</p>
+            <h1 className="text-xl font-headline font-semibold truncate" title={series.metadata.title}>{series.metadata.title}</h1>
+            <p className="text-sm text-muted-foreground truncate" title={book.name || `Chapter ${book.number}`}>{book.name || `Chapter ${book.number}`}</p>
           </div>
           <div className="flex gap-2 items-center">
             {!isFocusMode && (
               <>
-                <Button variant="outline" size="sm" asChild title="Previous Chapter" disabled={!prevChapter}>
-                  <Link href={prevChapter ? `/manga/${manga.id}/chapter/${prevChapter.id}` : '#'}>
+                <Button variant="outline" size="sm" asChild title="Previous Chapter" disabled={!prevBook}>
+                  <Link href={prevBook ? `/manga/${series.id}/chapter/${prevBook.id}` : '#'}>
                     <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline ml-1">Prev</span>
                   </Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild title="Chapter List">
-                  <Link href={`/manga/${manga.id}`}>
+                  <Link href={`/manga/${series.id}`}>
                     <List className="h-4 w-4" />
                   </Link>
                 </Button>
-                <Button variant="outline" size="sm" asChild title="Next Chapter" disabled={!nextChapter}>
-                  <Link href={nextChapter ? `/manga/${manga.id}/chapter/${nextChapter.id}` : '#'}>
+                <Button variant="outline" size="sm" asChild title="Next Chapter" disabled={!nextBook}>
+                  <Link href={nextBook ? `/manga/${series.id}/chapter/${nextBook.id}` : '#'}>
                     <span className="hidden sm:inline mr-1">Next</span> <ChevronRight className="h-4 w-4" />
                   </Link>
                 </Button>
@@ -87,14 +103,14 @@ export default function ChapterView({ manga, chapter, prevChapter, nextChapter, 
       </div>
 
       <div className="space-y-2">
-        {pages.map((pageUrl, index) => (
-          <React.Fragment key={`page-wrapper-${index}`}>
+        {pages.map((page, index) => (
+          <React.Fragment key={`page-wrapper-${page.number}`}>
             <div className="bg-card p-1 rounded-md shadow-sm">
               <Image
-                src={pageUrl}
-                alt={`Page ${index + 1} of ${chapter.title}`}
-                width={800}
-                height={1200}
+                src={page.url} // Use page.url from fetched pages
+                alt={`Page ${page.number} of ${book.name || `Chapter ${book.number}`}`}
+                width={page.width || 800}
+                height={page.height || 1200}
                 className="w-full h-auto rounded"
                 priority={index < 3} 
                 data-ai-hint="manga page"
@@ -110,22 +126,22 @@ export default function ChapterView({ manga, chapter, prevChapter, nextChapter, 
       {!isFocusMode && (
         <>
           <div className="mt-8 py-4 border-t flex justify-between items-center">
-            {prevChapter ? (
+            {prevBook ? (
               <Button variant="outline" asChild>
-                <Link href={`/manga/${manga.id}/chapter/${prevChapter.id}`}>
+                <Link href={`/manga/${series.id}/chapter/${prevBook.id}`}>
                   <ChevronLeft className="mr-2 h-4 w-4" /> Previous Chapter
                 </Link>
               </Button>
             ) : <div />}
-            {nextChapter ? (
+            {nextBook ? (
               <Button variant="default" asChild>
-                <Link href={`/manga/${manga.id}/chapter/${nextChapter.id}`}>
+                <Link href={`/manga/${series.id}/chapter/${nextBook.id}`}>
                   Next Chapter <ChevronRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
             ) : (
               <Button variant="outline" asChild>
-                <Link href={`/manga/${manga.id}`}>
+                <Link href={`/manga/${series.id}`}>
                   Back to Chapters <List className="ml-2 h-4 w-4" />
                 </Link>
               </Button>

@@ -1,8 +1,9 @@
+
 import React from 'react';
 import type { Metadata } from 'next';
-import { mockMangaList } from '@/lib/mock-data';
-import type { Manga } from '@/types';
-import MangaCard from '@/components/manga-card';
+import { getSeriesList } from '@/lib/manga-service';
+import type { Series } from '@/types'; // Changed from Manga to Series
+import MangaCard from '@/components/manga-card'; // Adapts to Series
 import { Separator } from '@/components/ui/separator';
 import { Tag as TagIcon } from 'lucide-react';
 
@@ -11,35 +12,36 @@ export const metadata: Metadata = {
   description: 'Browse manga by categories and genres. Find your next favorite read organized by tags.',
 };
 
-interface CategorizedManga {
-  [genre: string]: Manga[];
+interface CategorizedSeries { // Changed from Manga to Series
+  [genre: string]: Series[];
 }
 
-const groupMangaByGenre = (mangaList: Manga[]): CategorizedManga => {
-  const categorized: CategorizedManga = {};
-  mangaList.forEach(manga => {
-    if (manga.genres && manga.genres.length > 0) {
-      manga.genres.forEach(genre => {
+const groupSeriesByGenre = (seriesList: Series[]): CategorizedSeries => {
+  const categorized: CategorizedSeries = {};
+  seriesList.forEach(series => {
+    if (series.metadata.genres && series.metadata.genres.length > 0) {
+      series.metadata.genres.forEach(genre => {
         if (!categorized[genre]) {
           categorized[genre] = [];
         }
-        categorized[genre].push(manga);
+        categorized[genre].push(series);
       });
     }
   });
   return categorized;
 };
 
-export default function CategoriesPage() {
-  const categorizedManga = groupMangaByGenre(mockMangaList);
-  const sortedGenres = Object.keys(categorizedManga).sort((a, b) => a.localeCompare(b));
+export default async function CategoriesPage() {
+  const allSeries = await getSeriesList();
+  const categorizedSeries = groupSeriesByGenre(allSeries);
+  const sortedGenres = Object.keys(categorizedSeries).sort((a, b) => a.localeCompare(b));
 
   if (sortedGenres.length === 0) {
     return (
       <div className="text-center py-10">
         <TagIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
         <h1 className="text-3xl font-headline font-bold mb-4 text-primary">Manga Categories</h1>
-        <p className="text-lg text-muted-foreground">No categories found or no manga have been assigned genres yet.</p>
+        <p className="text-lg text-muted-foreground">No categories found or no series have been assigned genres yet.</p>
       </div>
     );
   }
@@ -70,14 +72,14 @@ export default function CategoriesPage() {
                 {genre}
               </h2>
             </div>
-            {categorizedManga[genre] && categorizedManga[genre].length > 0 ? (
+            {categorizedSeries[genre] && categorizedSeries[genre].length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                {categorizedManga[genre].map((manga: Manga) => (
-                  <MangaCard key={manga.id} manga={manga} />
+                {categorizedSeries[genre].map((series: Series) => (
+                  <MangaCard key={series.id} series={series} />
                 ))}
               </div>
             ) : (
-              <p className="text-muted-foreground">No manga found in this category.</p>
+              <p className="text-muted-foreground">No series found in this category.</p>
             )}
           </section>
         </React.Fragment>

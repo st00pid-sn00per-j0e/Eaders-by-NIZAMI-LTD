@@ -1,27 +1,29 @@
+
 "use client";
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { Chapter } from '@/types';
+import type { Book } from '@/types'; // Changed from Chapter to Book
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Lock, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 
 interface ChapterListItemProps {
-  mangaId: string;
-  chapter: Chapter;
-  isLocked?: boolean; // Initially locked status
+  seriesId: string; // Added seriesId
+  book: Book; // Changed from chapter to book
+  isLocked?: boolean;
 }
 
-export default function ChapterListItem({ mangaId, chapter, isLocked: initialLockStatus = false }: ChapterListItemProps) {
+export default function ChapterListItem({ seriesId, book, isLocked: initialLockStatus = false }: ChapterListItemProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isEffectivelyLocked, setIsEffectivelyLocked] = useState(initialLockStatus);
 
   useEffect(() => {
     if (initialLockStatus) {
-      const unlockedStatus = localStorage.getItem(`manga-${mangaId}-unlocked`);
+      // Komga premium/unlock status might be per series. Key for localStorage uses seriesId.
+      const unlockedStatus = localStorage.getItem(`series-${seriesId}-unlocked`);
       if (unlockedStatus === 'true') {
         setIsEffectivelyLocked(false);
       } else {
@@ -30,27 +32,25 @@ export default function ChapterListItem({ mangaId, chapter, isLocked: initialLoc
     } else {
       setIsEffectivelyLocked(false);
     }
-  }, [initialLockStatus, mangaId]);
+  }, [initialLockStatus, seriesId]);
   
   const handleChapterClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isEffectivelyLocked) {
       e.preventDefault();
       toast({
         title: "Chapter Locked",
-        description: "Unlock this premium manga to read its chapters.",
+        description: "Unlock this premium series to read its chapters.",
         variant: "destructive",
       });
     } else {
-      // Store that a chapter is being opened to trigger interstitial ad on chapter page
       sessionStorage.setItem('showInterstitialAd', 'true');
-      // Navigation will proceed as normal via Link href
     }
   };
 
   return (
     <li className="group">
       <Link 
-        href={isEffectivelyLocked ? '#' : `/manga/${mangaId}/chapter/${chapter.id}`} 
+        href={isEffectivelyLocked ? '#' : `/manga/${seriesId}/chapter/${book.id}`} // Use seriesId and book.id
         onClick={handleChapterClick}
         className={`flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors ${isEffectivelyLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
         aria-disabled={isEffectivelyLocked}
@@ -62,8 +62,9 @@ export default function ChapterListItem({ mangaId, chapter, isLocked: initialLoc
             <BookOpen className="h-5 w-5 text-primary mr-3" />
           )}
           <div>
-            <p className="font-medium text-foreground group-hover:text-primary transition-colors">{chapter.title}</p>
-            <p className="text-sm text-muted-foreground">Chapter {chapter.chapterNumber} &bull; {chapter.pageCount} pages</p>
+            {/* Use book.name or book.metadata.title */}
+            <p className="font-medium text-foreground group-hover:text-primary transition-colors">{book.name || `Chapter ${book.number}`}</p>
+            <p className="text-sm text-muted-foreground">Chapter {book.number} &bull; {book.pagesCount} pages</p>
           </div>
         </div>
         {!isEffectivelyLocked && <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-transform group-hover:translate-x-1" />}

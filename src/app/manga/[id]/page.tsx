@@ -2,40 +2,43 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getMangaById } from '@/lib/mock-data';
+import { getSeriesById, getBooksBySeriesId } from '@/lib/manga-service';
 import { Button } from '@/components/ui/button';
 import AdBanner from '@/components/ad-banner';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { BookMarked, CheckCircle, Users, CalendarDays, ChevronRight, ShieldAlert } from 'lucide-react';
-import ChapterListItem from './components/chapter-list-item';
+import ChapterListItem from './components/chapter-list-item'; // Will be BookListItem or adapt
 import RewardedUnlockButton from './components/rewarded-unlock-button';
 import BookmarkButton from './components/bookmark-button';
-import MangaRatingInteractive from './components/manga-rating-interactive'; // New component
+import MangaRatingInteractive from './components/manga-rating-interactive';
+import type { Series, Book } from '@/types'; // Import new types
 
 interface MangaDetailsPageProps {
   params: {
-    id: string;
+    id: string; // This is seriesId
   };
 }
 
 export async function generateMetadata({ params }: MangaDetailsPageProps) {
-  const manga = getMangaById(params.id);
-  if (!manga) {
-    return { title: 'Manga Not Found - Eaders' };
+  const series = await getSeriesById(params.id);
+  if (!series) {
+    return { title: 'Series Not Found - Eaders' };
   }
   return {
-    title: `${manga.title} - Eaders`,
-    description: manga.description.substring(0, 160),
+    title: `${series.metadata.title} - Eaders`,
+    description: series.metadata.summary.substring(0, 160),
   };
 }
 
-export default function MangaDetailsPage({ params }: MangaDetailsPageProps) {
-  const manga = getMangaById(params.id);
-
-  if (!manga) {
+export default async function MangaDetailsPage({ params }: MangaDetailsPageProps) {
+  const series = await getSeriesById(params.id);
+  
+  if (!series) {
     notFound();
   }
+  // Fetch books (chapters) for the series
+  const books = await getBooksBySeriesId(params.id);
 
   return (
     <div className="space-y-8">
@@ -44,8 +47,8 @@ export default function MangaDetailsPage({ params }: MangaDetailsPageProps) {
           <div className="md:col-span-1">
             <div className="aspect-[2/3] relative rounded-md overflow-hidden shadow-md">
               <Image
-                src={manga.coverImageUrl}
-                alt={`Cover of ${manga.title}`}
+                src={series.coverImageUrl}
+                alt={`Cover of ${series.metadata.title}`}
                 layout="fill"
                 objectFit="cover"
                 priority
@@ -54,42 +57,42 @@ export default function MangaDetailsPage({ params }: MangaDetailsPageProps) {
             </div>
           </div>
           <div className="md:col-span-2 space-y-4">
-            <h1 className="text-3xl md:text-4xl font-headline font-bold text-primary">{manga.title}</h1>
-            {manga.author && (
-              <p className="text-lg text-muted-foreground font-medium">By <span className="text-foreground">{manga.author}</span></p>
+            <h1 className="text-3xl md:text-4xl font-headline font-bold text-primary">{series.metadata.title}</h1>
+            {series.metadata.authors && series.metadata.authors.length > 0 && (
+              <p className="text-lg text-muted-foreground font-medium">By <span className="text-foreground">{series.metadata.authors.map(a => a.name).join(', ')}</span></p>
             )}
             <div className="flex flex-wrap gap-2">
-              {manga.genres?.map(genre => (
+              {series.metadata.genres?.map(genre => (
                 <Badge key={genre} variant="secondary" className="text-sm">{genre}</Badge>
               ))}
             </div>
             
-            <MangaRatingInteractive manga={manga} />
+            <MangaRatingInteractive series={series} /> {/* Pass series object */}
             
-            <p className="text-base leading-relaxed">{manga.description}</p>
+            <p className="text-base leading-relaxed">{series.metadata.summary}</p>
             <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
-              {manga.status && (
-                <span className="flex items-center"><CheckCircle className="w-4 h-4 mr-1 text-green-500" /> Status: {manga.status}</span>
+              {series.metadata.status && (
+                <span className="flex items-center capitalize"><CheckCircle className="w-4 h-4 mr-1 text-green-500" /> Status: {series.metadata.status.toLowerCase()}</span>
               )}
-              <span className="flex items-center"><Users className="w-4 h-4 mr-1" /> {manga.chapters.length} Chapters</span>
-              <span className="flex items-center"><CalendarDays className="w-4 h-4 mr-1" /> Updated: Recently</span>
+              <span className="flex items-center"><Users className="w-4 h-4 mr-1" /> {series.booksCount} Chapters</span>
+              {series.lastModifiedDate && <span className="flex items-center"><CalendarDays className="w-4 h-4 mr-1" /> Updated: {new Date(series.lastModifiedDate).toLocaleDateString()}</span>}
             </div>
             <div className="flex flex-wrap gap-3 pt-4">
-              {manga.chapters.length > 0 && !manga.premium && (
+              {books.length > 0 && !series.premium && (
                 <Button asChild size="lg">
-                  <Link href={`/manga/${manga.id}/chapter/${manga.chapters[0].id}`}>
+                  <Link href={`/manga/${series.id}/chapter/${books[0].id}`}>
                     Read First Chapter <ChevronRight className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>
               )}
-              <BookmarkButton mangaId={manga.id} />
-              {manga.premium && <RewardedUnlockButton manga={manga} />}
+              <BookmarkButton seriesId={series.id} /> {/* Pass seriesId */}
+              {series.premium && <RewardedUnlockButton series={series} />} {/* Pass series object */}
             </div>
-             {manga.premium && (
+             {series.premium && (
                 <div className="mt-4 p-3 bg-accent/20 border border-accent/50 rounded-md flex items-start">
                   <ShieldAlert className="h-5 w-5 text-accent mr-2 mt-0.5 shrink-0" />
                   <p className="text-sm text-accent-foreground">
-                    This is a premium manga. Unlock access to read its chapters.
+                    This is a premium series. Unlock access to read its chapters.
                   </p>
                 </div>
               )}
@@ -110,21 +113,21 @@ export default function MangaDetailsPage({ params }: MangaDetailsPageProps) {
               Chapters
             </h2>
         </div>
-        {manga.chapters.length > 0 ? (
+        {books.length > 0 ? (
           <div className="bg-card rounded-lg shadow">
             <ul className="divide-y divide-border">
-              {manga.chapters.map((chapter, index) => (
+              {books.map((book: Book) => ( // Iterate over books
                 <ChapterListItem 
-                  key={chapter.id} 
-                  mangaId={manga.id} 
-                  chapter={chapter} 
-                  isLocked={manga.premium}
+                  key={book.id} 
+                  seriesId={series.id} 
+                  book={book} // Pass book object
+                  isLocked={series.premium}
                 />
               ))}
             </ul>
           </div>
         ) : (
-          <p className="text-muted-foreground">No chapters available for this manga yet.</p>
+          <p className="text-muted-foreground">No chapters available for this series yet.</p>
         )}
       </section>
     </div>

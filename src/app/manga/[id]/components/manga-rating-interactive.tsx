@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import StarRating from '@/components/star-rating'; // The display component
-import type { Manga } from '@/types';
+import StarRating from '@/components/star-rating';
+import type { Series } from '@/types'; // Changed from Manga to Series
 
-const MOCK_USER_ID = "currentUser"; // Simulate a logged-in user
+const MOCK_USER_ID = "currentUser";
 
 interface MangaRatings {
-  [mangaId: string]: {
+  [seriesId: string]: { // Changed from mangaId to seriesId
     totalScore: number;
     count: number;
     userRatings: { [userId: string]: number };
@@ -19,46 +19,52 @@ interface MangaRatings {
 }
 
 interface MangaRatingInteractiveProps {
-  manga: Manga;
+  series: Series; // Changed from manga to series
 }
 
-export default function MangaRatingInteractive({ manga }: MangaRatingInteractiveProps) {
+export default function MangaRatingInteractive({ series }: MangaRatingInteractiveProps) {
   const { toast } = useToast();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUserRating, setCurrentUserRating] = useState<number | null>(null);
-  const [averageRating, setAverageRating] = useState<number>(manga.averageRating || 0);
-  const [ratingCount, setRatingCount] = useState<number>(manga.ratingCount || 0);
+  const [averageRating, setAverageRating] = useState<number>(series.averageRating || 0);
+  const [ratingCount, setRatingCount] = useState<number>(series.ratingCount || 0);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
 
   useEffect(() => {
-    // Simulate checking auth status
     const storedAuth = localStorage.getItem('eaders-auth');
     setIsLoggedIn(!!storedAuth);
 
-    // Load ratings from localStorage
     const allRatingsData = localStorage.getItem('eaders-manga-ratings');
     if (allRatingsData) {
       try {
         const allRatings: MangaRatings = JSON.parse(allRatingsData);
-        const mangaSpecificRatings = allRatings[manga.id];
-        if (mangaSpecificRatings) {
-          setAverageRating(mangaSpecificRatings.totalScore / mangaSpecificRatings.count);
-          setRatingCount(mangaSpecificRatings.count);
-          if (storedAuth && mangaSpecificRatings.userRatings[MOCK_USER_ID]) {
-            setCurrentUserRating(mangaSpecificRatings.userRatings[MOCK_USER_ID]);
+        const seriesSpecificRatings = allRatings[series.id];
+        if (seriesSpecificRatings) {
+          setAverageRating(seriesSpecificRatings.count > 0 ? seriesSpecificRatings.totalScore / seriesSpecificRatings.count : 0);
+          setRatingCount(seriesSpecificRatings.count);
+          if (storedAuth && seriesSpecificRatings.userRatings[MOCK_USER_ID]) {
+            setCurrentUserRating(seriesSpecificRatings.userRatings[MOCK_USER_ID]);
           }
+        } else {
+           setAverageRating(series.averageRating || 0);
+           setRatingCount(series.ratingCount || 0);
         }
       } catch (e) {
         console.error("Error loading manga ratings:", e);
+         setAverageRating(series.averageRating || 0);
+         setRatingCount(series.ratingCount || 0);
       }
+    } else {
+        setAverageRating(series.averageRating || 0);
+        setRatingCount(series.ratingCount || 0);
     }
-  }, [manga.id, manga.averageRating, manga.ratingCount]);
+  }, [series.id, series.averageRating, series.ratingCount]);
 
   const handleRating = (newRating: number) => {
     if (!isLoggedIn) {
       toast({
         title: "Login Required",
-        description: "Please sign in to rate manga.",
+        description: "Please sign in to rate series.",
         variant: "destructive",
       });
       return;
@@ -77,31 +83,31 @@ export default function MangaRatingInteractive({ manga }: MangaRatingInteractive
       }
     }
 
-    let mangaSpecificRatings = allRatings[manga.id] || {
+    let seriesSpecificRatings = allRatings[series.id] || {
       totalScore: 0,
       count: 0,
       userRatings: {},
     };
 
-    const oldUserRating = mangaSpecificRatings.userRatings[MOCK_USER_ID];
+    const oldUserRating = seriesSpecificRatings.userRatings[MOCK_USER_ID];
 
-    if (oldUserRating !== undefined) { // User is changing their rating
-      mangaSpecificRatings.totalScore = mangaSpecificRatings.totalScore - oldUserRating + newRating;
-    } else { // New rating
-      mangaSpecificRatings.totalScore += newRating;
-      mangaSpecificRatings.count += 1;
+    if (oldUserRating !== undefined) {
+      seriesSpecificRatings.totalScore = seriesSpecificRatings.totalScore - oldUserRating + newRating;
+    } else {
+      seriesSpecificRatings.totalScore += newRating;
+      seriesSpecificRatings.count += 1;
     }
-    mangaSpecificRatings.userRatings[MOCK_USER_ID] = newRating;
+    seriesSpecificRatings.userRatings[MOCK_USER_ID] = newRating;
     
-    allRatings[manga.id] = mangaSpecificRatings;
+    allRatings[series.id] = seriesSpecificRatings;
     localStorage.setItem('eaders-manga-ratings', JSON.stringify(allRatings));
 
-    setAverageRating(mangaSpecificRatings.totalScore / mangaSpecificRatings.count);
-    setRatingCount(mangaSpecificRatings.count);
+    setAverageRating(seriesSpecificRatings.totalScore / seriesSpecificRatings.count);
+    setRatingCount(seriesSpecificRatings.count);
 
     toast({
       title: "Rating Submitted!",
-      description: `You rated ${manga.title} ${newRating} star(s).`,
+      description: `You rated ${series.metadata.title} ${newRating} star(s).`,
     });
   };
 
@@ -144,7 +150,7 @@ export default function MangaRatingInteractive({ manga }: MangaRatingInteractive
       )}
       {!isLoggedIn && (
          <p className="text-sm text-muted-foreground">
-            Sign in to rate this manga.
+            Sign in to rate this series.
         </p>
       )}
     </div>

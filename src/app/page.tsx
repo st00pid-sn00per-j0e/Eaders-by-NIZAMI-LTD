@@ -1,13 +1,14 @@
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Star } from "lucide-react";
-import MangaCard from "@/components/manga-card";
+import MangaCard from "@/components/manga-card"; // Will be SeriesCard or MangaCard adapting to Series
 import AdBanner from "@/components/ad-banner";
-import { mockMangaList } from "@/lib/mock-data";
-import type { Manga } from "@/types";
+import { getSeriesList } from "@/lib/manga-service";
+import type { Series } from "@/types";
 
-export default function HomePage() {
-  const featuredManga = mockMangaList.filter(manga => manga.featured);
+export default async function HomePage() {
+  const featuredSeries = await getSeriesList({ featured: true });
 
   return (
     <div className="space-y-12">
@@ -40,21 +41,19 @@ export default function HomePage() {
         <div className="flex items-center mb-6">
           <Star className="h-6 w-6 text-accent mr-2" />
           <h2 id="featured-manga-heading" className="text-2xl font-headline font-semibold">
-            Featured Manga
+            Featured Series
           </h2>
         </div>
-        {featuredManga.length > 0 ? (
+        {featuredSeries.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {featuredManga.map((manga: Manga) => (
-              <MangaCard key={manga.id} manga={manga} />
+            {featuredSeries.map((series: Series) => (
+              <MangaCard key={series.id} series={series} />
             ))}
           </div>
         ) : (
-          <p className="text-muted-foreground">No featured manga available at the moment. Check back soon!</p>
+          <p className="text-muted-foreground">No featured series available at the moment. Check back soon!</p>
         )}
       </section>
-
-      {/* Potentially a "Recently Added" or "Popular This Week" section could go here */}
     </div>
   );
 }
