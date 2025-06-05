@@ -113,6 +113,17 @@ body {
 }
 
 /* Styles for Focus Mode */
+body.focus-mode-active {
+  --background: 210 20% 8%;   /* Very dark blue-gray for main background */
+  --foreground: 0 0% 95%;     /* Almost white for main text */
+  --muted-foreground: 0 0% 70%; /* Lighter gray for muted text */
+  --border: 210 20% 15%;         /* Slightly lighter dark for general borders */
+  --input: 210 20% 25%;          /* Slightly lighter dark for input/button borders */
+  /* Note: --card and --card-foreground are not overridden here,
+     so manga panels will use their current theme's card style,
+     ensuring they contrast against the new dark focus mode background. */
+}
+
 body.focus-mode-active header[class*="sticky"] { /* Target the main site header more specifically */
   display: none !important;
 }
