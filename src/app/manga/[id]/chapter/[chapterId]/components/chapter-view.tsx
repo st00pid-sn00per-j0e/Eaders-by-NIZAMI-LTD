@@ -5,12 +5,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import InterstitialAdDialog from './interstitial-ad-dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, List, Maximize, Minimize } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Maximize, Minimize, Loader2 } from 'lucide-react';
 import AdBanner from '@/components/ad-banner';
 import React, { useState, useEffect } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Series, Book, Page } from '@/types'; // Import new types
-import { getBookPages } from '@/lib/manga-service'; // Import service to get pages
+import type { Series, Book, Page } from '@/types';
+import { getBookPages } from '@/lib/manga-service';
 
 interface ChapterViewProps {
   series: Series;
@@ -40,6 +40,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   useEffect(() => {
     async function fetchPages() {
       setIsLoadingPages(true);
+      setPages([]); // Clear previous pages
       const fetchedPages = await getBookPages(book.id);
       setPages(fetchedPages);
       setIsLoadingPages(false);
@@ -49,9 +50,9 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
 
   if (isLoadingPages) {
     return (
-      <div className="mx-auto max-w-3xl text-center py-10">
-        <p>Loading chapter pages...</p>
-        {/* Optionally add a spinner here */}
+      <div className="mx-auto max-w-3xl text-center py-20 flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Loading chapter pages...</p>
       </div>
     );
   }
@@ -107,7 +108,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
           <React.Fragment key={`page-wrapper-${page.number}`}>
             <div className="bg-card p-1 rounded-md shadow-sm">
               <Image
-                src={page.url} // Use page.url from fetched pages
+                src={page.url}
                 alt={`Page ${page.number} of ${book.name || `Chapter ${book.number}`}`}
                 width={page.width || 800}
                 height={page.height || 1200}
