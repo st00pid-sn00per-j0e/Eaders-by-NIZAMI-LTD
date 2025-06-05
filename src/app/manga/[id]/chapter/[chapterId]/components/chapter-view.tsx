@@ -44,7 +44,7 @@ export default function ChapterView({ manga, chapter, prevChapter, nextChapter, 
     <div className="mx-auto max-w-3xl">
       {!isFocusMode && <InterstitialAdDialog />}
       
-      <div className={`sticky top-0 bg-background py-2 z-40 mb-4 border-b ${isFocusMode ? 'md:top-0' : 'md:top-0 top-16'}`}>
+      <div className={`sticky bg-background py-2 z-40 mb-4 border-b ${isFocusMode ? 'top-0' : 'top-16'}`}>
         <div className="container mx-auto px-2 flex flex-col sm:flex-row justify-between items-center">
           <div className="text-center sm:text-left mb-2 sm:mb-0">
             <h1 className="text-xl font-headline font-semibold truncate" title={manga.title}>{manga.title}</h1>
