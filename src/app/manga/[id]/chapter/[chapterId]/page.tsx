@@ -6,6 +6,7 @@ import InterstitialAdDialog from './components/interstitial-ad-dialog';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Home, List } from 'lucide-react';
 import AdBanner from '@/components/ad-banner';
+import React from 'react';
 
 interface ChapterPageProps {
   params: {
@@ -24,6 +25,8 @@ export async function generateMetadata({ params }: ChapterPageProps) {
     title: `${manga.title} - ${chapter.title} - Eaders`,
   };
 }
+
+const AD_INTERVAL = 5; // Show an ad every 5 pages
 
 export default function ChapterPage({ params }: ChapterPageProps) {
   const manga = getMangaById(params.id);
@@ -72,17 +75,22 @@ export default function ChapterPage({ params }: ChapterPageProps) {
 
       <div className="space-y-2">
         {pages.map((pageUrl, index) => (
-          <div key={index} className="bg-card p-1 rounded-md shadow-sm">
-            <Image
-              src={pageUrl}
-              alt={`Page ${index + 1} of ${chapter.title}`}
-              width={800}
-              height={1200}
-              className="w-full h-auto rounded"
-              priority={index < 3} // Prioritize loading first few pages
-              data-ai-hint="manga page"
-            />
-          </div>
+          <React.Fragment key={`page-wrapper-${index}`}>
+            <div className="bg-card p-1 rounded-md shadow-sm">
+              <Image
+                src={pageUrl}
+                alt={`Page ${index + 1} of ${chapter.title}`}
+                width={800}
+                height={1200}
+                className="w-full h-auto rounded"
+                priority={index < 3} // Prioritize loading first few pages
+                data-ai-hint="manga page"
+              />
+            </div>
+            {(index + 1) % AD_INTERVAL === 0 && (index + 1) < pages.length && (
+              <AdBanner key={`ad-${index}`} size="small" className="my-4" />
+            )}
+          </React.Fragment>
         ))}
       </div>
 
@@ -108,7 +116,7 @@ export default function ChapterPage({ params }: ChapterPageProps) {
           </Button>
         )}
       </div>
-       <AdBanner size="small" className="mt-8" />
+       <AdBanner size="medium" className="mt-8" />
     </div>
   );
 }
