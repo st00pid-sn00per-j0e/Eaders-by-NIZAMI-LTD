@@ -1,7 +1,9 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
-import { LogIn, UserCircle, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { LogIn, LogOut, Bookmark } from 'lucide-react'; // Replaced UserCircle with Bookmark
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -73,9 +75,11 @@ const AuthButtonClient = () => {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => toast({ title: "Feature not implemented", description: "Profile page is coming soon!"})}>
-            <UserCircle className="mr-2 h-4 w-4" />
-            Profile
+          <DropdownMenuItem asChild>
+            <Link href="/bookmarks">
+              <Bookmark className="mr-2 h-4 w-4" />
+              My Bookmarks
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout}>
