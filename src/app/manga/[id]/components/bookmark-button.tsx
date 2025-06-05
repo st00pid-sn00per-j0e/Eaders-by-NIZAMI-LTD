@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -11,19 +12,33 @@ interface BookmarkButtonProps {
 
 export default function BookmarkButton({ mangaId }: BookmarkButtonProps) {
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check local storage for bookmark status
-    const bookmarks = JSON.parse(localStorage.getItem('eaders-bookmarks') || '{}');
-    if (bookmarks[mangaId]) {
-      setIsBookmarked(true);
+    // Check auth status
+    const authData = localStorage.getItem('eaders-auth');
+    setIsLoggedIn(!!authData);
+
+    // Check local storage for bookmark status if logged in
+    if (authData) {
+      const bookmarks = JSON.parse(localStorage.getItem('eaders-bookmarks') || '{}');
+      if (bookmarks[mangaId]) {
+        setIsBookmarked(true);
+      }
     }
   }, [mangaId]);
 
   const toggleBookmark = () => {
-    // Simulate API call and update local state + storage
-    // In a real app, this would interact with a backend service and user auth
+    if (!isLoggedIn) {
+      toast({
+        title: "Login Required",
+        description: "Please sign in to bookmark manga.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newBookmarkStatus = !isBookmarked;
     setIsBookmarked(newBookmarkStatus);
 
@@ -40,12 +55,12 @@ export default function BookmarkButton({ mangaId }: BookmarkButtonProps) {
 
   return (
     <Button onClick={toggleBookmark} variant="outline" size="lg">
-      {isBookmarked ? (
+      {isBookmarked && isLoggedIn ? ( // Only show checked if also logged in
         <BookmarkCheck className="mr-2 h-5 w-5 text-primary" />
       ) : (
         <Bookmark className="mr-2 h-5 w-5" />
       )}
-      {isBookmarked ? 'Bookmarked' : 'Bookmark'}
+      {isBookmarked && isLoggedIn ? 'Bookmarked' : 'Bookmark'}
     </Button>
   );
 }
