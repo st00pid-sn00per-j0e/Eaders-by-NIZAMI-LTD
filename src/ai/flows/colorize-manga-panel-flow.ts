@@ -48,7 +48,7 @@ const colorizeMangaPanelFlow = ai.defineFlow(
           {text: 'You are an expert manga colorist. Colorize this black and white manga panel. Maintain the original line art and style. Provide only the colorized image as output. Do not add any text or descriptions.'},
         ],
         config: {
-          responseModalities: ['IMAGE'], // Request only image output
+          responseModalities: ['TEXT', 'IMAGE'], // Corrected: Request both TEXT and IMAGE output
           // Add safety settings if needed, e.g.
           // safetySettings: [{ category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' }]
         },
