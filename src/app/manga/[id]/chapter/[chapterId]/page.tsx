@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: ChapterPageProps) {
   };
 }
 
-const AD_INTERVAL = 5; // Show an ad every 5 pages
+const AD_INTERVAL = 2; // Show an ad every 2 pages
 
 export default function ChapterPage({ params }: ChapterPageProps) {
   const manga = getMangaById(params.id);
