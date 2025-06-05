@@ -5,9 +5,11 @@ import React, { useState, useEffect } from 'react';
 import { mockMangaList } from '@/lib/mock-data';
 import type { Manga } from '@/types';
 import MangaCard from '@/components/manga-card';
+import MangaCardSkeleton from '@/components/manga-card-skeleton'; // Import skeleton
 import { Bookmark, BookmarkX, LogIn } from 'lucide-react';
-import { Button } from '@/components/ui/button'; 
-import Link from 'next/link'; 
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton for header
 
 export default function BookmarksDisplay() {
   const [bookmarkedManga, setBookmarkedManga] = useState<Manga[]>([]);
@@ -24,7 +26,7 @@ export default function BookmarksDisplay() {
         try {
           const bookmarkIdsObject = JSON.parse(bookmarksData);
           const mangaIds = Object.keys(bookmarkIdsObject);
-          
+
           const filteredManga = mockMangaList.filter(manga => mangaIds.includes(manga.id));
           setBookmarkedManga(filteredManga);
         } catch (error) {
@@ -32,17 +34,30 @@ export default function BookmarksDisplay() {
         }
       }
     }
+    // Simulate a slight delay for loading perception if needed, otherwise remove
+    // setTimeout(() => setIsLoading(false), 500); 
     setIsLoading(false);
   }, []);
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center py-10">
-        <svg className="animate-spin h-10 w-10 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="text-lg text-muted-foreground">Loading...</p>
+      <div className="space-y-8">
+        <section className="pt-8 pb-4 bg-card rounded-lg shadow-sm">
+          <div className="container mx-auto px-4 md:px-6 text-center">
+            <div className="flex items-center justify-center mb-3">
+              <Bookmark className="h-8 w-8 md:h-10 md:w-10 text-primary mr-2 md:mr-3 shrink-0" />
+              <Skeleton className="h-8 w-48 md:h-10 md:w-64 rounded" /> {/* Skeleton for Title */}
+            </div>
+            <Skeleton className="h-5 w-3/4 max-w-xl mx-auto rounded" /> {/* Skeleton for Subtitle */}
+          </div>
+        </section>
+        <section>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+            {Array.from({ length: 5 }).map((_, index) => ( // Show 5 skeleton cards
+              <MangaCardSkeleton key={`skeleton-${index}`} />
+            ))}
+          </div>
+        </section>
       </div>
     );
   }
