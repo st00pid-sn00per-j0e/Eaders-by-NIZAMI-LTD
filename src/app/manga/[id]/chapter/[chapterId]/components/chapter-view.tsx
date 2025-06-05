@@ -5,12 +5,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import InterstitialAdDialog from './interstitial-ad-dialog';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, List, Maximize, Minimize, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, Maximize, Minimize, Loader2, Palette, RotateCcw } from 'lucide-react';
 import AdBanner from '@/components/ad-banner';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Series, Book, Page } from '@/types';
 import { getBookPages } from '@/lib/manga-service';
+import { colorizeMangaPanel, type ColorizeMangaPanelInput } from '@/ai/flows/colorize-manga-panel-flow';
+import { useToast } from '@/hooks/use-toast';
 
 interface ChapterViewProps {
   series: Series;
@@ -21,10 +23,45 @@ interface ChapterViewProps {
 
 const AD_INTERVAL = 2;
 
+// Helper function to convert image URL to data URI
+async function convertImageToDataUri(imageUrl: string): Promise<string> {
+  try {
+    // Use a proxy if direct fetching is blocked by CORS for placehold.co or other external domains
+    // For simplicity, we assume direct fetch works or a proxy is set up if needed.
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error converting image to data URI:", error);
+    throw new Error("Could not load image for colorization.");
+  }
+}
+
+
 export default function ChapterView({ series, book, prevBook, nextBook }: ChapterViewProps) {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [isLoadingPages, setIsLoadingPages] = useState(true);
+  const [isSeriesUnlocked, setIsSeriesUnlocked] = useState(false);
+  const [colorizedPages, setColorizedPages] = useState<{ [pageNumber: number]: string | 'loading' }>({});
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (series.premium) {
+      const unlockedStatus = localStorage.getItem(`series-${series.id}-unlocked`);
+      setIsSeriesUnlocked(unlockedStatus === 'true');
+    } else {
+      setIsSeriesUnlocked(true); // Non-premium series are always "unlocked" for features
+    }
+  }, [series.id, series.premium]);
 
   useEffect(() => {
     if (isFocusMode) {
@@ -40,13 +77,43 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   useEffect(() => {
     async function fetchPages() {
       setIsLoadingPages(true);
-      setPages([]); // Clear previous pages
+      setPages([]); 
+      setColorizedPages({}); // Reset colorized pages when book changes
       const fetchedPages = await getBookPages(book.id);
       setPages(fetchedPages);
       setIsLoadingPages(false);
     }
     fetchPages();
   }, [book.id]);
+
+  const handleColorizePage = useCallback(async (page: Page) => {
+    setColorizedPages(prev => ({ ...prev, [page.number]: 'loading' }));
+    try {
+      const originalPanelDataUri = await convertImageToDataUri(page.url);
+      const input: ColorizeMangaPanelInput = { panelDataUri: originalPanelDataUri };
+      const result = await colorizeMangaPanel(input);
+      setColorizedPages(prev => ({ ...prev, [page.number]: result.colorizedPanelDataUri }));
+      toast({ title: "Panel Colorized!", description: `Page ${page.number} has been colorized by AI.` });
+    } catch (error: any) {
+      console.error("Error colorizing page:", error);
+      setColorizedPages(prev => ({ ...prev, [page.number]: page.url })); // Revert to original on error
+      toast({
+        title: "Colorization Failed",
+        description: error.message || "Could not colorize the panel. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  const handleRevertToOriginal = (pageNumber: number) => {
+    setColorizedPages(prev => {
+      const newState = { ...prev };
+      delete newState[pageNumber]; // Remove the colorized version to revert
+      return newState;
+    });
+     toast({ title: "Reverted", description: `Page ${pageNumber} reverted to original.`});
+  };
+
 
   if (isLoadingPages) {
     return (
@@ -104,24 +171,75 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       </div>
 
       <div className="space-y-2">
-        {pages.map((page, index) => (
-          <React.Fragment key={`page-wrapper-${page.number}`}>
-            <div className="bg-card p-1 rounded-md shadow-sm">
-              <Image
-                src={page.url}
-                alt={`Page ${page.number} of ${book.name || `Chapter ${book.number}`}`}
-                width={page.width || 800}
-                height={page.height || 1200}
-                className="w-full h-auto rounded"
-                priority={index < 3} 
-                data-ai-hint="manga page"
-              />
-            </div>
-            {!isFocusMode && (index + 1) % AD_INTERVAL === 0 && (index + 1) < pages.length && (
-               <AdBanner key={`ad-${index}`} size="small" className="my-4" />
-            )}
-          </React.Fragment>
-        ))}
+        {pages.map((page, index) => {
+          const currentImageSrc = typeof colorizedPages[page.number] === 'string' && colorizedPages[page.number] !== 'loading'
+            ? colorizedPages[page.number] as string
+            : page.url;
+          const isColorizingThisPage = colorizedPages[page.number] === 'loading';
+          const isPageColorized = typeof colorizedPages[page.number] === 'string' && colorizedPages[page.number] !== 'loading';
+
+          return (
+            <React.Fragment key={`page-wrapper-${page.number}`}>
+              <div className="bg-card p-1 rounded-md shadow-sm relative group">
+                <Image
+                  src={currentImageSrc}
+                  alt={`Page ${page.number} of ${book.name || `Chapter ${book.number}`}`}
+                  width={page.width || 800}
+                  height={page.height || 1200}
+                  className="w-full h-auto rounded"
+                  priority={index < 3} 
+                  data-ai-hint="manga page"
+                />
+                {isSeriesUnlocked && !isFocusMode && (
+                  <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
+                    {isPageColorized ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="bg-background/80 hover:bg-background"
+                              onClick={() => handleRevertToOriginal(page.number)}
+                            >
+                              <RotateCcw className="h-5 w-5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Revert to Original</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="bg-background/80 hover:bg-background"
+                              onClick={() => handleColorizePage(page)}
+                              disabled={isColorizingThisPage}
+                            >
+                              {isColorizingThisPage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Palette className="h-5 w-5 text-accent" />}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent><p>Colorize with AI (Premium)</p></TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                )}
+                 {isColorizingThisPage && (
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-md">
+                        <Loader2 className="h-10 w-10 animate-spin text-white" />
+                    </div>
+                )}
+              </div>
+              {!isFocusMode && (index + 1) % AD_INTERVAL === 0 && (index + 1) < pages.length && (
+                 <AdBanner key={`ad-${index}`} size="small" className="my-4" />
+              )}
+            </React.Fragment>
+          )
+        })}
       </div>
 
       {!isFocusMode && (
