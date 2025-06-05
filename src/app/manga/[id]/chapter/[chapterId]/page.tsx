@@ -5,6 +5,7 @@ import { getMangaById, getChapterById } from '@/lib/mock-data';
 import InterstitialAdDialog from './components/interstitial-ad-dialog';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Home, List } from 'lucide-react';
+import AdBanner from '@/components/ad-banner';
 
 interface ChapterPageProps {
   params: {
