@@ -8,11 +8,12 @@ import AdBanner from '@/components/ad-banner';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { BookMarked, CheckCircle, Users, CalendarDays, ChevronRight, ShieldAlert } from 'lucide-react';
-import ChapterListItem from './components/chapter-list-item'; // Will be BookListItem or adapt
+import ChapterListItem from './components/chapter-list-item';
 import RewardedUnlockButton from './components/rewarded-unlock-button';
 import BookmarkButton from './components/bookmark-button';
 import MangaRatingInteractive from './components/manga-rating-interactive';
-import type { Series, Book } from '@/types'; // Import new types
+import SynopsisEnhancer from './components/synopsis-enhancer'; // Import the new component
+import type { Series, Book } from '@/types';
 
 interface MangaDetailsPageProps {
   params: {
@@ -37,7 +38,6 @@ export default async function MangaDetailsPage({ params }: MangaDetailsPageProps
   if (!series) {
     notFound();
   }
-  // Fetch books (chapters) for the series
   const books = await getBooksBySeriesId(params.id);
 
   return (
@@ -67,10 +67,15 @@ export default async function MangaDetailsPage({ params }: MangaDetailsPageProps
               ))}
             </div>
             
-            <MangaRatingInteractive series={series} /> {/* Pass series object */}
+            <MangaRatingInteractive series={series} />
             
-            <p className="text-base leading-relaxed">{series.metadata.summary}</p>
-            <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
+            {/* Replace direct summary display with SynopsisEnhancer */}
+            <SynopsisEnhancer 
+              mangaTitle={series.metadata.title} 
+              originalSynopsis={series.metadata.summary} 
+            />
+
+            <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground pt-2">
               {series.metadata.status && (
                 <span className="flex items-center capitalize"><CheckCircle className="w-4 h-4 mr-1 text-green-500" /> Status: {series.metadata.status.toLowerCase()}</span>
               )}
@@ -85,8 +90,8 @@ export default async function MangaDetailsPage({ params }: MangaDetailsPageProps
                   </Link>
                 </Button>
               )}
-              <BookmarkButton seriesId={series.id} /> {/* Pass seriesId */}
-              {series.premium && <RewardedUnlockButton series={series} />} {/* Pass series object */}
+              <BookmarkButton seriesId={series.id} />
+              {series.premium && <RewardedUnlockButton series={series} />}
             </div>
              {series.premium && (
                 <div className="mt-4 p-3 bg-accent/20 border border-accent/50 rounded-md flex items-start">
@@ -116,11 +121,11 @@ export default async function MangaDetailsPage({ params }: MangaDetailsPageProps
         {books.length > 0 ? (
           <div className="bg-card rounded-lg shadow">
             <ul className="divide-y divide-border">
-              {books.map((book: Book) => ( // Iterate over books
+              {books.map((book: Book) => (
                 <ChapterListItem 
                   key={book.id} 
                   seriesId={series.id} 
-                  book={book} // Pass book object
+                  book={book}
                   isLocked={series.premium}
                 />
               ))}
