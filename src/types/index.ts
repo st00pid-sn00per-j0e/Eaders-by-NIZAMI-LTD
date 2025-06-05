@@ -1,3 +1,4 @@
+
 export interface Chapter {
   id: string;
   title: string;
@@ -16,4 +17,6 @@ export interface Manga {
   status?: 'Ongoing' | 'Completed';
   featured?: boolean;
   premium?: boolean; // For rewarded unlocks
+  averageRating?: number; // New: Average rating from 0 to 5
+  ratingCount?: number;   // New: Number of ratings received
 }

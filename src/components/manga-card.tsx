@@ -1,15 +1,48 @@
+
+"use client"; // MangaCard needs to be client for potential localStorage access for ratings
+
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Manga } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BookOpenText } from 'lucide-react';
+import { BookOpenText, Star } from 'lucide-react';
+import StarRating from '@/components/star-rating'; // Import StarRating
+import React, { useState, useEffect } from 'react';
 
 interface MangaCardProps {
   manga: Manga;
 }
 
+interface MangaRatings {
+  [mangaId: string]: {
+    totalScore: number;
+    count: number;
+    userRatings: { [userId: string]: number };
+  };
+}
+
 const MangaCard = ({ manga }: MangaCardProps) => {
+  const [displayRating, setDisplayRating] = useState(manga.averageRating || 0);
+  const [displayRatingCount, setDisplayRatingCount] = useState(manga.ratingCount || 0);
+
+  useEffect(() => {
+    const allRatingsData = localStorage.getItem('eaders-manga-ratings');
+    if (allRatingsData) {
+      try {
+        const allRatings: MangaRatings = JSON.parse(allRatingsData);
+        const mangaSpecificRatings = allRatings[manga.id];
+        if (mangaSpecificRatings && mangaSpecificRatings.count > 0) {
+          setDisplayRating(mangaSpecificRatings.totalScore / mangaSpecificRatings.count);
+          setDisplayRatingCount(mangaSpecificRatings.count);
+        }
+      } catch (e) {
+        // Keep default if error
+      }
+    }
+  }, [manga.id, manga.averageRating, manga.ratingCount]);
+
+
   return (
     <Link href={`/manga/${manga.id}`} passHref>
       <Card className="h-full flex flex-col overflow-hidden hover:shadow-lg transition-shadow duration-300 rounded-lg">
@@ -26,9 +59,14 @@ const MangaCard = ({ manga }: MangaCardProps) => {
             <Badge variant="destructive" className="absolute top-2 right-2 shadow-md">Premium</Badge>
           )}
         </CardHeader>
-        <CardContent className="p-4 flex-grow">
+        <CardContent className="p-4 flex-grow space-y-2">
           <CardTitle className="text-lg font-headline leading-tight mb-1 line-clamp-2">{manga.title}</CardTitle>
-          {manga.author && <p className="text-xs text-muted-foreground mb-2">By {manga.author}</p>}
+          {manga.author && <p className="text-xs text-muted-foreground">By {manga.author}</p>}
+          
+          {displayRating > 0 && (
+            <StarRating rating={displayRating} ratingCount={displayRatingCount} size="sm" showText={true} />
+          )}
+
           <p className="text-sm text-muted-foreground line-clamp-3">{manga.description}</p>
         </CardContent>
         <CardFooter className="p-4 border-t">

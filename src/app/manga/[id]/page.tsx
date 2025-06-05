@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -10,6 +11,7 @@ import { BookMarked, CheckCircle, Users, CalendarDays, ChevronRight, ShieldAlert
 import ChapterListItem from './components/chapter-list-item';
 import RewardedUnlockButton from './components/rewarded-unlock-button';
 import BookmarkButton from './components/bookmark-button';
+import MangaRatingInteractive from './components/manga-rating-interactive'; // New component
 
 interface MangaDetailsPageProps {
   params: {
@@ -61,13 +63,15 @@ export default function MangaDetailsPage({ params }: MangaDetailsPageProps) {
                 <Badge key={genre} variant="secondary" className="text-sm">{genre}</Badge>
               ))}
             </div>
+            
+            <MangaRatingInteractive manga={manga} />
+            
             <p className="text-base leading-relaxed">{manga.description}</p>
             <div className="flex flex-wrap gap-2 items-center text-sm text-muted-foreground">
               {manga.status && (
                 <span className="flex items-center"><CheckCircle className="w-4 h-4 mr-1 text-green-500" /> Status: {manga.status}</span>
               )}
               <span className="flex items-center"><Users className="w-4 h-4 mr-1" /> {manga.chapters.length} Chapters</span>
-              {/* Placeholder for release date or last updated */}
               <span className="flex items-center"><CalendarDays className="w-4 h-4 mr-1" /> Updated: Recently</span>
             </div>
             <div className="flex flex-wrap gap-3 pt-4">
@@ -114,7 +118,7 @@ export default function MangaDetailsPage({ params }: MangaDetailsPageProps) {
                   key={chapter.id} 
                   mangaId={manga.id} 
                   chapter={chapter} 
-                  isLocked={manga.premium} // Pass lock status
+                  isLocked={manga.premium}
                 />
               ))}
             </ul>

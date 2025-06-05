@@ -1,3 +1,4 @@
+
 import type { Manga, Chapter } from '@/types';
 
 const generateChapters = (mangaId: string, count: number): Chapter[] => {
@@ -20,6 +21,8 @@ export const mockMangaList: Manga[] = [
     status: 'Ongoing',
     chapters: generateChapters('manga-1', 15),
     featured: true,
+    averageRating: 4.5,
+    ratingCount: 120,
   },
   {
     id: 'manga-2',
@@ -31,6 +34,8 @@ export const mockMangaList: Manga[] = [
     status: 'Completed',
     chapters: generateChapters('manga-2', 50),
     featured: true,
+    averageRating: 4.2,
+    ratingCount: 95,
   },
   {
     id: 'manga-3',
@@ -41,6 +46,8 @@ export const mockMangaList: Manga[] = [
     genres: ['Comedy', 'Slice of Life', 'School'],
     status: 'Ongoing',
     chapters: generateChapters('manga-3', 5),
+    averageRating: 3.8,
+    ratingCount: 30,
   },
   {
     id: 'manga-4',
@@ -52,6 +59,8 @@ export const mockMangaList: Manga[] = [
     status: 'Completed',
     chapters: generateChapters('manga-4', 120),
     premium: true, // This manga requires rewarded ad unlock
+    averageRating: 4.9,
+    ratingCount: 250,
   },
   {
     id: 'manga-5',
@@ -63,6 +72,8 @@ export const mockMangaList: Manga[] = [
     status: 'Ongoing',
     chapters: generateChapters('manga-5', 200),
     featured: true,
+    averageRating: 4.0,
+    ratingCount: 150,
   },
 ];
 
