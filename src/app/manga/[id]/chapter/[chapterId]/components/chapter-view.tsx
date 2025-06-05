@@ -26,8 +26,6 @@ const AD_INTERVAL = 2;
 // Helper function to convert image URL to data URI
 async function convertImageToDataUri(imageUrl: string): Promise<string> {
   try {
-    // Use a proxy if direct fetching is blocked by CORS for placehold.co or other external domains
-    // For simplicity, we assume direct fetch works or a proxy is set up if needed.
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -54,12 +52,14 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   const [colorizedPages, setColorizedPages] = useState<{ [pageNumber: number]: string | 'loading' }>({});
   const { toast } = useToast();
 
+  const getLocalStorageKey = useCallback(() => `eaders-colorized-pages-${book.id}`, [book.id]);
+
   useEffect(() => {
     if (series.premium) {
       const unlockedStatus = localStorage.getItem(`series-${series.id}-unlocked`);
       setIsSeriesUnlocked(unlockedStatus === 'true');
     } else {
-      setIsSeriesUnlocked(true); // Non-premium series are always "unlocked" for features
+      setIsSeriesUnlocked(true); 
     }
   }, [series.id, series.premium]);
 
@@ -75,16 +75,48 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   }, [isFocusMode]);
 
   useEffect(() => {
-    async function fetchPages() {
+    async function fetchAndLoadPages() {
       setIsLoadingPages(true);
-      setPages([]); 
-      setColorizedPages({}); // Reset colorized pages when book changes
+      setPages([]);
+      
+      // Load saved colorizations from localStorage
+      const savedColorizations = localStorage.getItem(getLocalStorageKey());
+      if (savedColorizations) {
+        try {
+          setColorizedPages(JSON.parse(savedColorizations));
+        } catch (e) {
+          console.error("Error parsing saved colorizations:", e);
+          setColorizedPages({});
+        }
+      } else {
+        setColorizedPages({});
+      }
+      
       const fetchedPages = await getBookPages(book.id);
       setPages(fetchedPages);
       setIsLoadingPages(false);
     }
-    fetchPages();
-  }, [book.id]);
+    fetchAndLoadPages();
+  }, [book.id, getLocalStorageKey]);
+
+
+  // Save colorizedPages to localStorage whenever it changes
+  useEffect(() => {
+    // Only save if there's something to save (not initial empty or loading states)
+    if (Object.keys(colorizedPages).length > 0 || localStorage.getItem(getLocalStorageKey())) {
+      try {
+        localStorage.setItem(getLocalStorageKey(), JSON.stringify(colorizedPages));
+      } catch (e) {
+        console.error("Error saving colorizations to localStorage:", e);
+        toast({
+            title: "Storage Error",
+            description: "Could not save colorization progress. Your browser storage might be full.",
+            variant: "destructive"
+        });
+      }
+    }
+  }, [colorizedPages, getLocalStorageKey, toast]);
+
 
   const handleColorizePage = useCallback(async (page: Page) => {
     setColorizedPages(prev => ({ ...prev, [page.number]: 'loading' }));
@@ -96,7 +128,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       toast({ title: "Panel Colorized!", description: `Page ${page.number} has been colorized by AI.` });
     } catch (error: any) {
       console.error("Error colorizing page:", error);
-      setColorizedPages(prev => ({ ...prev, [page.number]: page.url })); // Revert to original on error
+      setColorizedPages(prev => ({ ...prev, [page.number]: page.url })); 
       toast({
         title: "Colorization Failed",
         description: error.message || "Could not colorize the panel. Please try again.",
@@ -108,7 +140,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   const handleRevertToOriginal = (pageNumber: number) => {
     setColorizedPages(prev => {
       const newState = { ...prev };
-      delete newState[pageNumber]; // Remove the colorized version to revert
+      delete newState[pageNumber]; 
       return newState;
     });
      toast({ title: "Reverted", description: `Page ${pageNumber} reverted to original.`});
@@ -176,7 +208,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
             ? colorizedPages[page.number] as string
             : page.url;
           const isColorizingThisPage = colorizedPages[page.number] === 'loading';
-          const isPageColorized = typeof colorizedPages[page.number] === 'string' && colorizedPages[page.number] !== 'loading';
+          const isPageColorized = typeof colorizedPages[page.number] === 'string' && colorizedPages[page.number] !== 'loading' && colorizedPages[page.number] !== page.url;
 
           return (
             <React.Fragment key={`page-wrapper-${page.number}`}>
@@ -189,6 +221,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
                   className="w-full h-auto rounded"
                   priority={index < 3} 
                   data-ai-hint="manga page"
+                  unoptimized={currentImageSrc.startsWith('data:')} // Important for data URIs
                 />
                 {isSeriesUnlocked && !isFocusMode && (
                   <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
@@ -272,3 +305,4 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
     </div>
   );
 }
+
