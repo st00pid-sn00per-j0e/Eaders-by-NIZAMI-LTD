@@ -28,12 +28,10 @@ const COLORIZATION_COST = 1;
 // Helper function to convert image URL to data URI
 async function convertImageToDataUri(imageUrl: string): Promise<string> {
   try {
-    // Attempt to use a proxy to bypass CORS if the URL is external and not a data URI
     const urlToFetch = !imageUrl.startsWith('data:') ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}` : imageUrl;
     const response = await fetch(urlToFetch);
 
     if (!response.ok) {
-        // If proxy fails, try direct fetch (might work for local Komga, but fail for placehold.co in prod)
         if (urlToFetch.startsWith('/api/image-proxy')) {
             console.warn("Proxy fetch failed, attempting direct fetch for:", imageUrl);
             const directResponse = await fetch(imageUrl);
@@ -71,33 +69,78 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   const [colorizedPages, setColorizedPages] = useState<{ [pageNumber: number]: string | 'loading' }>({});
   const [userBalance, setUserBalance] = useState<number>(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // User identifier
   const { toast } = useToast();
 
-  const getLocalStorageKey = useCallback(() => `eaders-colorized-pages-${book.id}`, [book.id]);
-
   useEffect(() => {
-    // Check login status
-    const authData = localStorage.getItem('eaders-auth');
-    setIsLoggedIn(!!authData);
+    const updateAuthStateAndBalance = () => {
+      const authData = localStorage.getItem('eaders-auth');
+      if (authData) {
+        try {
+          const parsedAuth = JSON.parse(authData);
+          if (parsedAuth && parsedAuth.user && parsedAuth.user.email) {
+            setIsLoggedIn(true);
+            setCurrentUserId(parsedAuth.user.email);
+          } else {
+            setIsLoggedIn(false);
+            setCurrentUserId(null);
+          }
+        } catch (error) {
+          console.error("Error parsing auth data on load:", error);
+          setIsLoggedIn(false);
+          setCurrentUserId(null);
+        }
+      } else {
+        setIsLoggedIn(false);
+        setCurrentUserId(null);
+      }
 
-    // Load balance
-    const storedBalance = localStorage.getItem(USER_BALANCE_KEY);
-    setUserBalance(storedBalance ? parseFloat(storedBalance) : 0);
+      const storedBalance = localStorage.getItem(USER_BALANCE_KEY);
+      setUserBalance(storedBalance ? parseFloat(storedBalance) : 0);
+    };
 
-    // Listen for storage changes to update balance
+    updateAuthStateAndBalance(); // Initial check
+
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === USER_BALANCE_KEY && event.newValue !== null) {
         setUserBalance(parseFloat(event.newValue));
       }
       if (event.key === 'eaders-auth') {
-        setIsLoggedIn(!!event.newValue);
+        if (event.newValue) {
+          try {
+            const authData = JSON.parse(event.newValue);
+            if (authData && authData.user && authData.user.email) {
+                setIsLoggedIn(true);
+                setCurrentUserId(authData.user.email);
+            } else {
+                setIsLoggedIn(false);
+                setCurrentUserId(null);
+            }
+          } catch (error) {
+            console.error("Error parsing auth data on storage event:", error);
+            setIsLoggedIn(false);
+            setCurrentUserId(null);
+          }
+        } else { // Auth data removed (logout)
+          setIsLoggedIn(false);
+          setCurrentUserId(null);
+        }
       }
     };
+
     window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
+
+
+  const getLocalStorageKey = useCallback(() => {
+    if (!currentUserId || !book.id) {
+      return null;
+    }
+    return `eaders-colorized-pages-${currentUserId}-${book.id}`;
+  }, [currentUserId, book.id]);
 
   useEffect(() => {
     if (isFocusMode) {
@@ -115,37 +158,54 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       setIsLoadingPages(true);
       setPages([]);
       
-      const savedColorizations = localStorage.getItem(getLocalStorageKey());
-      if (savedColorizations) {
-        try {
-          setColorizedPages(JSON.parse(savedColorizations));
-        } catch (e) {
-          console.error("Error parsing saved colorizations:", e);
+      const key = getLocalStorageKey();
+      if (key) {
+        const savedColorizations = localStorage.getItem(key);
+        if (savedColorizations) {
+          try {
+            setColorizedPages(JSON.parse(savedColorizations));
+          } catch (e) {
+            console.error("Error parsing saved colorizations:", e);
+            setColorizedPages({});
+          }
+        } else {
           setColorizedPages({});
         }
       } else {
-        setColorizedPages({});
+         setColorizedPages({}); // Clear if no valid key (user logged out)
       }
       
-      const fetchedPages = await getBookPages(book.id);
-      setPages(fetchedPages);
-      setIsLoadingPages(false);
+      try {
+        const fetchedPages = await getBookPages(book.id);
+        setPages(fetchedPages);
+      } catch (error) {
+        console.error("Failed to fetch book pages:", error);
+        // toast({ title: "Error", description: "Could not load chapter pages.", variant: "destructive" });
+      } finally {
+        setIsLoadingPages(false);
+      }
     }
-    fetchAndLoadPages();
-  }, [book.id, getLocalStorageKey]);
+    if (book.id) {
+        fetchAndLoadPages();
+    }
+  }, [book.id, getLocalStorageKey]); // getLocalStorageKey will change if currentUserId changes
 
 
   useEffect(() => {
-    if (Object.keys(colorizedPages).length > 0 || localStorage.getItem(getLocalStorageKey())) {
-      try {
-        localStorage.setItem(getLocalStorageKey(), JSON.stringify(colorizedPages));
-      } catch (e) {
-        console.error("Error saving colorizations to localStorage:", e);
-        toast({
-            title: "Storage Error",
-            description: "Could not save colorization progress. Your browser storage might be full.",
-            variant: "destructive"
-        });
+    const key = getLocalStorageKey();
+    if (key) { // Only save if there's a valid user-specific key
+      // Save if there are colorizations, or if there was a previous entry for this user/book (to clear it if colorizedPages is now empty)
+      if (Object.keys(colorizedPages).length > 0 || localStorage.getItem(key)) {
+         try {
+            localStorage.setItem(key, JSON.stringify(colorizedPages));
+         } catch (e) {
+            console.error("Error saving colorizations to localStorage:", e);
+            toast({
+                title: "Storage Error",
+                description: "Could not save colorization progress. Your browser storage might be full.",
+                variant: "destructive"
+            });
+         }
       }
     }
   }, [colorizedPages, getLocalStorageKey, toast]);
@@ -172,11 +232,9 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       const input: ColorizeMangaPanelInput = { panelDataUri: originalPanelDataUri };
       const result = await colorizeMangaPanel(input);
       
-      // Deduct cost and update balance
       const newBalance = userBalance - COLORIZATION_COST;
       localStorage.setItem(USER_BALANCE_KEY, newBalance.toString());
       setUserBalance(newBalance);
-      // Dispatch storage event for other components like AuthButtonClient
       window.dispatchEvent(new StorageEvent('storage', { key: USER_BALANCE_KEY, newValue: newBalance.toString() }));
 
       setColorizedPages(prev => ({ ...prev, [page.number]: result.colorizedPanelDataUri }));
@@ -185,7 +243,6 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       console.error("Error colorizing page:", error);
       setColorizedPages(prev => {
         const newState = { ...prev };
-        // If it was loading, remove the loading state to show original URL
         if (newState[page.number] === 'loading') {
           delete newState[page.number];
         }
@@ -197,14 +254,13 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
         variant: "destructive",
       });
     }
-  }, [toast, userBalance, isLoggedIn, getLocalStorageKey]); // Added getLocalStorageKey dependency
+  }, [toast, userBalance, isLoggedIn]);
 
   const handleRevertToOriginal = (pageNumber: number) => {
     setColorizedPages(prev => {
       const newState = { ...prev };
       delete newState[pageNumber]; 
-      // Update localStorage after reverting
-      localStorage.setItem(getLocalStorageKey(), JSON.stringify(newState));
+      // The useEffect watching colorizedPages will handle updating localStorage.
       return newState;
     });
      toast({ title: "Reverted", description: `Page ${pageNumber} reverted to original.`});
@@ -278,7 +334,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
             <React.Fragment key={`page-wrapper-${page.number}`}>
               <div 
                 className="bg-card p-1 rounded-md shadow-sm relative group"
-                onContextMenu={(e) => e.preventDefault()} // Prevent right-click context menu on the div containing the image
+                onContextMenu={(e) => e.preventDefault()}
               >
                 <Image
                   src={currentImageSrc}
@@ -289,7 +345,6 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
                   priority={index < 3} 
                   data-ai-hint="manga page"
                   unoptimized={currentImageSrc.startsWith('data:')} 
-                  // onContextMenu={(e) => e.preventDefault()} // Already handled by parent div
                 />
                 {isLoggedIn && !isFocusMode && (
                   <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
