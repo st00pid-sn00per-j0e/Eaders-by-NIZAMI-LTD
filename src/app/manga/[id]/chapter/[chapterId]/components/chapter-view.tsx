@@ -22,12 +22,32 @@ interface ChapterViewProps {
 }
 
 const AD_INTERVAL = 2;
+const USER_BALANCE_KEY = 'eaders-user-balance';
+const COLORIZATION_COST = 1;
 
 // Helper function to convert image URL to data URI
 async function convertImageToDataUri(imageUrl: string): Promise<string> {
   try {
-    const response = await fetch(imageUrl);
+    // Attempt to use a proxy to bypass CORS if the URL is external and not a data URI
+    const urlToFetch = !imageUrl.startsWith('data:') ? `/api/image-proxy?url=${encodeURIComponent(imageUrl)}` : imageUrl;
+    const response = await fetch(urlToFetch);
+
     if (!response.ok) {
+        // If proxy fails, try direct fetch (might work for local Komga, but fail for placehold.co in prod)
+        if (urlToFetch.startsWith('/api/image-proxy')) {
+            console.warn("Proxy fetch failed, attempting direct fetch for:", imageUrl);
+            const directResponse = await fetch(imageUrl);
+            if(!directResponse.ok) {
+                throw new Error(`Direct fetch failed for ${imageUrl}: ${directResponse.statusText}`);
+            }
+            const blob = await directResponse.blob();
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.onerror = (error) => reject(error);
+                reader.readAsDataURL(blob);
+            });
+        }
       throw new Error(`Failed to fetch image: ${response.statusText}`);
     }
     const blob = await response.blob();
@@ -39,7 +59,7 @@ async function convertImageToDataUri(imageUrl: string): Promise<string> {
     });
   } catch (error) {
     console.error("Error converting image to data URI:", error);
-    throw new Error("Could not load image for colorization.");
+    throw new Error("Could not load image for colorization. Check CORS policy or image URL.");
   }
 }
 
@@ -48,20 +68,36 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [pages, setPages] = useState<Page[]>([]);
   const [isLoadingPages, setIsLoadingPages] = useState(true);
-  const [isSeriesUnlocked, setIsSeriesUnlocked] = useState(false);
   const [colorizedPages, setColorizedPages] = useState<{ [pageNumber: number]: string | 'loading' }>({});
+  const [userBalance, setUserBalance] = useState<number>(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const { toast } = useToast();
 
   const getLocalStorageKey = useCallback(() => `eaders-colorized-pages-${book.id}`, [book.id]);
 
   useEffect(() => {
-    if (series.premium) {
-      const unlockedStatus = localStorage.getItem(`series-${series.id}-unlocked`);
-      setIsSeriesUnlocked(unlockedStatus === 'true');
-    } else {
-      setIsSeriesUnlocked(true); 
-    }
-  }, [series.id, series.premium]);
+    // Check login status
+    const authData = localStorage.getItem('eaders-auth');
+    setIsLoggedIn(!!authData);
+
+    // Load balance
+    const storedBalance = localStorage.getItem(USER_BALANCE_KEY);
+    setUserBalance(storedBalance ? parseFloat(storedBalance) : 0);
+
+    // Listen for storage changes to update balance
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === USER_BALANCE_KEY && event.newValue !== null) {
+        setUserBalance(parseFloat(event.newValue));
+      }
+      if (event.key === 'eaders-auth') {
+        setIsLoggedIn(!!event.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (isFocusMode) {
@@ -79,7 +115,6 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       setIsLoadingPages(true);
       setPages([]);
       
-      // Load saved colorizations from localStorage
       const savedColorizations = localStorage.getItem(getLocalStorageKey());
       if (savedColorizations) {
         try {
@@ -100,9 +135,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
   }, [book.id, getLocalStorageKey]);
 
 
-  // Save colorizedPages to localStorage whenever it changes
   useEffect(() => {
-    // Only save if there's something to save (not initial empty or loading states)
     if (Object.keys(colorizedPages).length > 0 || localStorage.getItem(getLocalStorageKey())) {
       try {
         localStorage.setItem(getLocalStorageKey(), JSON.stringify(colorizedPages));
@@ -119,13 +152,35 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
 
 
   const handleColorizePage = useCallback(async (page: Page) => {
+    if (!isLoggedIn) {
+      toast({ title: "Login Required", description: "Please sign in to use AI colorization.", variant: "destructive" });
+      return;
+    }
+
+    if (userBalance < COLORIZATION_COST) {
+      toast({
+        title: "Insufficient Balance",
+        description: `You need $${COLORIZATION_COST.toFixed(2)} to colorize this page. Please add credits.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setColorizedPages(prev => ({ ...prev, [page.number]: 'loading' }));
     try {
       const originalPanelDataUri = await convertImageToDataUri(page.url);
       const input: ColorizeMangaPanelInput = { panelDataUri: originalPanelDataUri };
       const result = await colorizeMangaPanel(input);
+      
+      // Deduct cost and update balance
+      const newBalance = userBalance - COLORIZATION_COST;
+      localStorage.setItem(USER_BALANCE_KEY, newBalance.toString());
+      setUserBalance(newBalance);
+      // Dispatch storage event for other components like AuthButtonClient
+      window.dispatchEvent(new StorageEvent('storage', { key: USER_BALANCE_KEY, newValue: newBalance.toString() }));
+
       setColorizedPages(prev => ({ ...prev, [page.number]: result.colorizedPanelDataUri }));
-      toast({ title: "Panel Colorized!", description: `Page ${page.number} has been colorized by AI.` });
+      toast({ title: "Panel Colorized!", description: `Page ${page.number} has been colorized. $${COLORIZATION_COST.toFixed(2)} deducted.` });
     } catch (error: any) {
       console.error("Error colorizing page:", error);
       setColorizedPages(prev => ({ ...prev, [page.number]: page.url })); 
@@ -135,7 +190,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [toast, userBalance, isLoggedIn]);
 
   const handleRevertToOriginal = (pageNumber: number) => {
     setColorizedPages(prev => {
@@ -221,9 +276,9 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
                   className="w-full h-auto rounded"
                   priority={index < 3} 
                   data-ai-hint="manga page"
-                  unoptimized={currentImageSrc.startsWith('data:')} // Important for data URIs
+                  unoptimized={currentImageSrc.startsWith('data:')} 
                 />
-                {isSeriesUnlocked && !isFocusMode && (
+                {isLoggedIn && !isFocusMode && (
                   <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
                     {isPageColorized ? (
                       <TooltipProvider>
@@ -250,12 +305,12 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
                               variant="outline"
                               className="bg-background/80 hover:bg-background"
                               onClick={() => handleColorizePage(page)}
-                              disabled={isColorizingThisPage}
+                              disabled={isColorizingThisPage || !isLoggedIn}
                             >
                               {isColorizingThisPage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Palette className="h-5 w-5 text-accent" />}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent><p>Colorize with AI (Premium)</p></TooltipContent>
+                           <TooltipContent><p>Colorize with AI ($1.00)</p></TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     )}
@@ -305,4 +360,3 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
     </div>
   );
 }
-
