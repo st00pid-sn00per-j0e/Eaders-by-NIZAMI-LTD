@@ -183,19 +183,28 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
       toast({ title: "Panel Colorized!", description: `Page ${page.number} has been colorized. $${COLORIZATION_COST.toFixed(2)} deducted.` });
     } catch (error: any) {
       console.error("Error colorizing page:", error);
-      setColorizedPages(prev => ({ ...prev, [page.number]: page.url })); 
+      setColorizedPages(prev => {
+        const newState = { ...prev };
+        // If it was loading, remove the loading state to show original URL
+        if (newState[page.number] === 'loading') {
+          delete newState[page.number];
+        }
+        return newState;
+      }); 
       toast({
         title: "Colorization Failed",
         description: error.message || "Could not colorize the panel. Please try again.",
         variant: "destructive",
       });
     }
-  }, [toast, userBalance, isLoggedIn]);
+  }, [toast, userBalance, isLoggedIn, getLocalStorageKey]); // Added getLocalStorageKey dependency
 
   const handleRevertToOriginal = (pageNumber: number) => {
     setColorizedPages(prev => {
       const newState = { ...prev };
       delete newState[pageNumber]; 
+      // Update localStorage after reverting
+      localStorage.setItem(getLocalStorageKey(), JSON.stringify(newState));
       return newState;
     });
      toast({ title: "Reverted", description: `Page ${pageNumber} reverted to original.`});
@@ -267,7 +276,10 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
 
           return (
             <React.Fragment key={`page-wrapper-${page.number}`}>
-              <div className="bg-card p-1 rounded-md shadow-sm relative group">
+              <div 
+                className="bg-card p-1 rounded-md shadow-sm relative group"
+                onContextMenu={(e) => e.preventDefault()} // Prevent right-click context menu on the div containing the image
+              >
                 <Image
                   src={currentImageSrc}
                   alt={`Page ${page.number} of ${book.name || `Chapter ${book.number}`}`}
@@ -277,6 +289,7 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
                   priority={index < 3} 
                   data-ai-hint="manga page"
                   unoptimized={currentImageSrc.startsWith('data:')} 
+                  // onContextMenu={(e) => e.preventDefault()} // Already handled by parent div
                 />
                 {isLoggedIn && !isFocusMode && (
                   <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-2">
@@ -360,3 +373,4 @@ export default function ChapterView({ series, book, prevBook, nextBook }: Chapte
     </div>
   );
 }
+

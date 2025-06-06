@@ -45,10 +45,10 @@ const colorizeMangaPanelFlow = ai.defineFlow(
         model: 'googleai/gemini-2.0-flash-exp', // Model capable of image generation/manipulation
         prompt: [
           {media: {url: input.panelDataUri}},
-          {text: 'You are an expert manga colorist. Colorize this black and white manga panel. Maintain the original line art and style. Provide only the colorized image as output. Do not add any text or descriptions.'},
+          {text: 'You are an expert manga colorist. Your task is to colorize this black and white manga panel. It is CRITICAL that you DO NOT alter, redraw, or change any of the existing line art or the original artistic style. Your ONLY job is to add color to the existing drawing. Provide only the colorized image as output. Do not add any text or descriptions.'},
         ],
         config: {
-          responseModalities: ['TEXT', 'IMAGE'], // Corrected: Request both TEXT and IMAGE output
+          responseModalities: ['TEXT', 'IMAGE'],
           // Add safety settings if needed, e.g.
           // safetySettings: [{ category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' }]
         },
@@ -71,3 +71,4 @@ const colorizeMangaPanelFlow = ai.defineFlow(
     }
   }
 );
+
