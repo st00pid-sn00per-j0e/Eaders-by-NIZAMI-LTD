@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+    <msapplication>
+        <tile>
+            <square70x70logo src="/icons/eaders-logomark.svg"/>
+            <square150x150logo src="/icons/eaders-logo-192.svg"/>
+            <wide310x150logo src="/icons/eaders-logo-512.svg"/> 
+            <square310x310logo src="/icons/eaders-logo-512.svg"/>
+            <TileColor>#2A3B4C</TileColor>
+        </tile>
+    </msapplication>
+</browserconfig>
