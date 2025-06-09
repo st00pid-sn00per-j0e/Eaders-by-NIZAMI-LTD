@@ -1,4 +1,5 @@
 
+
 export interface Author {
   name: string;
   role?: string;
@@ -7,7 +8,7 @@ export interface Author {
 export interface SeriesMetadata {
   title: string; // Main title, can be same as series name
   summary: string;
-  status: 'ONGOING' | 'ENDED' | 'HIATUS' | 'ABANDONED' | 'COMPLETED'; // Komga uses these, 'COMPLETED' is an alias for 'ENDED'
+  status: 'ONGOING' | 'ENDED' | 'HIATUS' | 'ABANDONED' | 'COMPLETED' | 'UNKNOWN'; // Added UNKNOWN for safer typing
   authors: Author[];
   genres: string[];
   publisher?: string;
@@ -53,7 +54,7 @@ export interface Book {
   };
   metadata?: { // Komga book metadata
     title: string; // Can be same as book.name
-    summary?: string;
+    summary: string; // Changed from optional to required (empty string if not present)
     number: string; // Often chapter number as string
     numberSort: number;
     releaseDate?: string;
@@ -70,6 +71,17 @@ export interface Book {
   pagesCount: number; // Directly accessible page count
 }
 
+// Interface for Komga's page details from /api/v1/books/{bookId}/pages
+export interface KomgaBookPage {
+  number: number;
+  fileName: string;
+  mediaType: string;
+  width?: number;
+  height?: number;
+  sizeBytes?: number; // Added to match Komga API response
+}
+
+
 export interface Page {
   number: number; // Page number (1-indexed)
   fileName?: string;
@@ -78,3 +90,4 @@ export interface Page {
   height?: number;
   url: string; // URL to the page image, e.g., /api/v1/books/{bookId}/pages/{pageNumber}
 }
+

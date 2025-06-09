@@ -1,7 +1,7 @@
 
 'use server';
 
-import type { Series, Book, Page, SeriesMetadata, Author } from '@/types';
+import type { Series, Book, Page, SeriesMetadata, Author, KomgaBookPage } from '@/types';
 import {
   mockSeriesList,
   mockBooksData,
@@ -60,7 +60,7 @@ function transformKomgaBook(komgaBook: any): Book {
     },
     metadata: {
       title: komgaBook.metadata?.title || komgaBook.name,
-      summary: komgaBook.metadata?.summary,
+      summary: komgaBook.metadata?.summary || '', // Ensure summary is a string
       number: komgaBook.metadata?.number || String(komgaBook.number),
       numberSort: komgaBook.metadata?.numberSort || komgaBook.number,
       releaseDate: komgaBook.metadata?.releaseDate,
@@ -82,11 +82,9 @@ export async function getSeriesList(filters?: { featured?: boolean }): Promise<S
 
   if (komgaBaseUrl && komgaApiKey) {
     try {
-      // Komga API parameters for paging, sorting etc. can be added here if needed
-      // e.g. /api/v1/series?page=0&size=20&sort=metadata.titleSort,asc
-      const response = await fetch(`${komgaBaseUrl}/api/v1/series?unpaged=true`, { // unpaged=true for all series
+      const response = await fetch(`${komgaBaseUrl}/api/v1/series?unpaged=true`, {
         headers: { 'X-Api-Key': komgaApiKey },
-        next: { revalidate: 3600 } // Revalidate cache every hour
+        next: { revalidate: 3600 }
       });
 
       if (!response.ok) {
@@ -103,24 +101,16 @@ export async function getSeriesList(filters?: { featured?: boolean }): Promise<S
 
       const seriesList: Series[] = komgaData.content.map((s: any) => transformKomgaSeries(s, komgaBaseUrl));
       
-      // 'featured' filter is app-specific, Komga doesn't have it directly.
-      // If you need featured items, you might tag them in Komga and filter by tag here.
-      // For now, if 'featured' filter is active, it might return an empty list or all series.
-      // Or, we could fall back to mock for featured if live API doesn't support it.
       if (filters?.featured) {
-         // For now, let's return a slice of the live data as "featured" or specific IDs if known.
-         // This is a placeholder for a real "featured" mechanism with Komga.
-         // Example: return seriesList.slice(0, 5); 
-         console.warn("Live Komga 'featured' filter not fully implemented, returning all series or relying on mock for featured if this part is modified.");
-         // Returning mock for featured if live is not configured for it.
-         // This can be changed to return a slice or filter of `seriesList` if desired.
-         return mockSeriesList.filter(series => series.featured);
+         // If 'featured' filter is active with live Komga data, return the first 5 series.
+         // This is a simple placeholder for a more sophisticated "featured" mechanism.
+         console.info("Komga live: Using first 5 series as 'featured'.");
+         return seriesList.slice(0, 5); 
       }
       return seriesList;
 
     } catch (error) {
       console.error("Error fetching series from Komga, falling back to mock data:", error);
-      // Fallback to mock data for featured filter as well
       if (filters?.featured) {
         return mockSeriesList.filter(series => series.featured);
       }
@@ -147,7 +137,7 @@ export async function getSeriesById(id: string): Promise<Series | undefined> {
       });
 
       if (!response.ok) {
-         if (response.status === 404) return undefined; // Not found
+         if (response.status === 404) return undefined; 
         console.error(`Failed to fetch series ${id} from Komga: ${response.status} ${response.statusText}. Response: ${await response.text()}`);
         throw new Error('Failed to fetch series details from Komga');
       }
@@ -169,8 +159,7 @@ export async function getBooksBySeriesId(seriesId: string): Promise<Book[]> {
 
   if (komgaBaseUrl && komgaApiKey) {
     try {
-      // Komga sorts books by number by default.
-      const response = await fetch(`${komgaBaseUrl}/api/v1/series/${seriesId}/books?unpaged=true`, { // unpaged=true for all books
+      const response = await fetch(`${komgaBaseUrl}/api/v1/series/${seriesId}/books?unpaged=true`, { 
         headers: { 'X-Api-Key': komgaApiKey },
         next: { revalidate: 3600 }
       });
@@ -208,7 +197,7 @@ export async function getBookById(bookId: string): Promise<Book | undefined> {
       });
 
       if (!response.ok) {
-        if (response.status === 404) return undefined; // Not found
+        if (response.status === 404) return undefined;
         console.error(`Failed to fetch book ${bookId} from Komga: ${response.status} ${response.statusText}. Response: ${await response.text()}`);
         throw new Error('Failed to fetch book details from Komga');
       }
@@ -225,44 +214,77 @@ export async function getBookById(bookId: string): Promise<Book | undefined> {
 }
 
 export async function getBookPages(bookId: string): Promise<Page[]> {
-  // First, get the book to know its pagesCount
-  const book = await getBookById(bookId); // This will use Komga or mock based on config
-  if (!book || book.pagesCount === 0) {
-      // Try to fetch page count directly if book object didn't have it or it was zero.
-      // This part could still rely on a book object having pagesCount from getBookById.
-      // For a more robust solution, one might fetch /api/v1/books/{bookId}/pages from Komga here
-      // to get the actual page list and their metadata (width, height, type).
-      // However, for simplicity and performance, we'll rely on book.pagesCount for now.
-      console.warn(`Book ${bookId} not found or has 0 pages. Cannot fetch pages.`);
-      return [];
-  }
-
   const komgaBaseUrl = process.env.KOMGA_BASE_URL;
+  const komgaApiKey = process.env.KOMGA_API_KEY;
 
-  // TODO: For more accurate page data (width, height, mediaType),
-  // fetch from `${komgaBaseUrl}/api/v1/books/${bookId}/pages`
-  // and map the results instead of generating them.
-  // This current implementation just generates URLs.
+  if (komgaBaseUrl && komgaApiKey) {
+    try {
+      // Fetch detailed page information from Komga
+      const response = await fetch(`${komgaBaseUrl}/api/v1/books/${bookId}/pages`, {
+        headers: { 'X-Api-Key': komgaApiKey },
+        next: { revalidate: 3600 } // Cache for 1 hour
+      });
 
-  return Array.from({ length: book.pagesCount }, (_, i) => {
-    const pageNumber = i + 1;
-    let pageUrl: string;
+      if (!response.ok) {
+        console.error(`Failed to fetch page details for book ${bookId} from Komga: ${response.status} ${response.statusText}. Response: ${await response.text()}`);
+        // Fallback to simple URL generation if detailed fetch fails but book exists
+        const book = await getBookById(bookId); // Could be from mock or live if above failed but this works
+        if (!book || book.pagesCount === 0) return [];
+        return Array.from({ length: book.pagesCount }, (_, i) => ({
+          number: i + 1,
+          mediaType: 'image/jpeg', // Default, less accurate
+          url: `${komgaBaseUrl}/api/v1/books/${bookId}/pages/${i + 1}`,
+          width: 800,  // Placeholder
+          height: 1200, // Placeholder
+        }));
+      }
 
-    if (komgaBaseUrl) {
-      // Komga page URLs typically don't require API key directly in URL.
-      // Auth for image access is handled by session or if proxying, proxy adds headers.
-      pageUrl = `${komgaBaseUrl}/api/v1/books/${bookId}/pages/${pageNumber}`;
-    } else {
-      // Fallback to mock placeholder URL
-      pageUrl = `https://placehold.co/800x1200.png?text=S[${book.seriesId || 'unknown'}]-B[${bookId}]-P[${pageNumber}]`;
+      const komgaPages: KomgaBookPage[] = await response.json();
+      if (!Array.isArray(komgaPages)) {
+          console.error('Komga pages response is not an array:', komgaPages);
+          throw new Error('Invalid pages data format from Komga');
+      }
+
+      return komgaPages.map((p: KomgaBookPage) => ({
+        number: p.number,
+        mediaType: p.mediaType,
+        url: `${komgaBaseUrl}/api/v1/books/${bookId}/pages/${p.number}`,
+        width: p.width || 800,  // Use actual width or fallback
+        height: p.height || 1200, // Use actual height or fallback
+        fileName: p.fileName,
+      }));
+
+    } catch (error) {
+      console.error(`Error fetching pages for book ${bookId} from Komga, attempting fallback to URL generation:`, error);
+      // Fallback: Generate URLs if detailed fetch fails, relies on pagesCount from getBookById
+      const book = await getBookById(bookId);
+      if (!book || book.pagesCount === 0) {
+        console.warn(`Book ${bookId} not found or has 0 pages for URL generation fallback.`);
+        return [];
+      }
+      return Array.from({ length: book.pagesCount }, (_, i) => ({
+        number: i + 1,
+        mediaType: 'image/jpeg', // Less accurate default
+        url: `${komgaBaseUrl}/api/v1/books/${bookId}/pages/${i + 1}`,
+        width: 800,  // Placeholder
+        height: 1200, // Placeholder
+      }));
     }
-
-    return {
-      number: pageNumber,
-      mediaType: 'image/png', // Placeholder, ideally from actual Komga page metadata
-      url: pageUrl,
-      width: 800,  // Placeholder
-      height: 1200, // Placeholder
-    };
-  });
+  } else {
+    // Komga not configured, use mock data logic (which generates placeholder URLs)
+    console.warn(`Komga URL or API key not configured. Using mock data for pages in book ${bookId}.`);
+    const book = await getBookById(bookId); // Will get mock book
+    if (!book || book.pagesCount === 0) return [];
+    
+    return Array.from({ length: book.pagesCount }, (_, i) => {
+      const pageNumber = i + 1;
+      return {
+        number: pageNumber,
+        mediaType: 'image/png',
+        url: `https://placehold.co/800x1200.png?text=S[${book.seriesId || 'mock'}]-B[${bookId}]-P[${pageNumber}]`,
+        width: 800,
+        height: 1200,
+      };
+    });
+  }
 }
